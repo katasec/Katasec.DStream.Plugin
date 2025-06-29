@@ -1,6 +1,5 @@
 ﻿using DStreamDotnetTest;
-using DStream.Plugin;
-using static DStream.Plugin.Plugin;
+using Katasec.DStream.Proto;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Microsoft.AspNetCore.Builder;
@@ -8,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Logging;
+using static Katasec.DStream.Proto.Plugin;
 
 namespace Katasec.DStream.Plugin;
 
