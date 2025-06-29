@@ -1,8 +1,5 @@
 using Katasec.DStream.Proto;
 using Katasec.DStream.Plugin.Interfaces;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Katasec.DStream.Plugin;
 
@@ -27,7 +24,7 @@ public interface IDStreamPlugin
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for graceful shutdown</param>
     /// <returns>A task representing the asynchronous operation</returns>
-    Task ExecuteAsync(CancellationToken cancellationToken);
+    // Task ExecuteAsync(CancellationToken cancellationToken);
 
     /// <summary>
     /// Gets the schema fields for the plugin

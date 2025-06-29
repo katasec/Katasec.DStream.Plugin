@@ -224,9 +224,9 @@ public class DStreamPluginHost<TPlugin> where TPlugin : class, IDStreamPlugin, n
                 }
                 else
                 {
-                    _logger.Info("Starting plugin in legacy mode (no input/output providers)");
+                    _logger.Info("No input/output providers)");
                     // Fall back to legacy execution mode
-                    await _plugin.ExecuteAsync(linkedCts.Token);
+                    // await _plugin.ExecuteAsync(linkedCts.Token);
                 }
             }
             catch (OperationCanceledException)
