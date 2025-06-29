@@ -1,4 +1,4 @@
-﻿using DStreamDotnetTest;
+using DStreamDotnetTest;
 using Katasec.DStream.Proto;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
@@ -174,16 +174,60 @@ public class DStreamPluginHost<TPlugin> where TPlugin : class, IDStreamPlugin, n
             return Task.FromResult(response);
         }
 
-        public override async Task<Empty> Start(Struct request, ServerCallContext context)
+        public override async Task<Empty> Start(StartRequest request, ServerCallContext context)
         {
             try
             {
                 // Link the cancellation token from the context
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
                     context.CancellationToken, _cts.Token);
-
-                // Execute the plugin
-                await _plugin.ExecuteAsync(linkedCts.Token);
+                
+                // Check if we have input and output configurations
+                if (request.Input != null && request.Output != null)
+                {
+                    _logger.Info("Starting plugin with input provider '{0}' and output provider '{1}'", 
+                        request.Input.Provider, request.Output.Provider);
+                    
+                    try
+                    {
+                        // Create and configure input provider
+                        var input = ProviderRegistry.CreateInputProvider(request.Input.Provider);
+                        var inputConfig = request.Input.Config?.Fields.ToDictionary(
+                            kvp => kvp.Key, 
+                            kvp => (object)kvp.Value) ?? new Dictionary<string, object>();
+                        await input.InitializeAsync(inputConfig, linkedCts.Token);
+                        
+                        // Create and configure output provider
+                        var output = ProviderRegistry.CreateOutputProvider(request.Output.Provider);
+                        var outputConfig = request.Output.Config?.Fields.ToDictionary(
+                            kvp => kvp.Key, 
+                            kvp => (object)kvp.Value) ?? new Dictionary<string, object>();
+                        await output.InitializeAsync(outputConfig, linkedCts.Token);
+                        
+                        // Get global config
+                        var globalConfig = request.Config?.Fields.ToDictionary(
+                            kvp => kvp.Key, 
+                            kvp => (object)kvp.Value) ?? new Dictionary<string, object>();
+                        
+                        // Process using input/output providers
+                        await _plugin.ProcessAsync(input, output, globalConfig, linkedCts.Token);
+                        
+                        // Clean up providers
+                        await input.CloseAsync(linkedCts.Token);
+                        await output.CloseAsync(linkedCts.Token);
+                    }
+                    catch (KeyNotFoundException ex)
+                    {
+                        _logger.Error("Provider not found: {0}", ex.Message);
+                        throw;
+                    }
+                }
+                else
+                {
+                    _logger.Info("Starting plugin in legacy mode (no input/output providers)");
+                    // Fall back to legacy execution mode
+                    await _plugin.ExecuteAsync(linkedCts.Token);
+                }
             }
             catch (OperationCanceledException)
             {

@@ -1,5 +1,8 @@
-﻿//using DStream.Plugin;
 using Katasec.DStream.Proto;
+using Katasec.DStream.Plugin.Interfaces;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Katasec.DStream.Plugin;
 
@@ -10,8 +13,17 @@ namespace Katasec.DStream.Plugin;
 public interface IDStreamPlugin
 {
     /// <summary>
-    /// The main execution method for the plugin
-    /// This will be called when the plugin is started by dstream
+    /// The main processing method for the plugin using input and output providers
+    /// </summary>
+    /// <param name="input">The configured input provider</param>
+    /// <param name="output">The configured output provider</param>
+    /// <param name="config">Global plugin configuration</param>
+    /// <param name="cancellationToken">Cancellation token for graceful shutdown</param>
+    /// <returns>A task representing the asynchronous operation</returns>
+    Task ProcessAsync(IInput input, IOutput output, Dictionary<string, object> config, CancellationToken cancellationToken);
+    
+    /// <summary>
+    /// Legacy execution method for backward compatibility
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for graceful shutdown</param>
     /// <returns>A task representing the asynchronous operation</returns>
@@ -20,7 +32,7 @@ public interface IDStreamPlugin
     /// <summary>
     /// Gets the schema fields for the plugin
     /// </summary>
-    /// <returns>A dictionary of field schemas</returns>
+    /// <returns>A collection of field schemas</returns>
     IEnumerable<FieldSchema> GetSchemaFields();
 
     /// <summary>
