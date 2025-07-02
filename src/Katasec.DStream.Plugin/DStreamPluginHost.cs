@@ -182,6 +182,19 @@ public class DStreamPluginHost<TPlugin> where TPlugin : class, IDStreamPlugin, n
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
                     context.CancellationToken, _cts.Token);
                 
+                // Log the raw request structure received from dstream CLI
+                _logger.Info("Raw request structure from dstream CLI:");
+                _logger.Info($"Input Provider: {request.Input?.Provider}");
+                _logger.Info($"Output Provider: {request.Output?.Provider}");
+                if (request.Config != null)
+                {
+                    _logger.Info("Global Config:");
+                    foreach (var field in request.Config.Fields)
+                    {
+                        _logger.Info($"  {field.Key}: {field.Value}");
+                    }
+                }
+                
                 // Check if we have input and output configurations
                 if (request.Input != null && request.Output != null)
                 {
@@ -195,6 +208,14 @@ public class DStreamPluginHost<TPlugin> where TPlugin : class, IDStreamPlugin, n
                         var inputConfig = request.Input.Config?.Fields.ToDictionary(
                             kvp => kvp.Key, 
                             kvp => (object)kvp.Value) ?? new Dictionary<string, object>();
+                        
+                        // Log input configuration
+                        _logger.Info("Input Configuration:");
+                        foreach (var kvp in inputConfig)
+                        {
+                            _logger.Info($"  {kvp.Key}: {kvp.Value}");
+                        }
+                        
                         await input.InitializeAsync(inputConfig, linkedCts.Token);
                         
                         // Create and configure output provider
@@ -202,6 +223,14 @@ public class DStreamPluginHost<TPlugin> where TPlugin : class, IDStreamPlugin, n
                         var outputConfig = request.Output.Config?.Fields.ToDictionary(
                             kvp => kvp.Key, 
                             kvp => (object)kvp.Value) ?? new Dictionary<string, object>();
+                        
+                        // Log output configuration
+                        _logger.Info("Output Configuration:");
+                        foreach (var kvp in outputConfig)
+                        {
+                            _logger.Info($"  {kvp.Key}: {kvp.Value}");
+                        }
+                        
                         await output.InitializeAsync(outputConfig, linkedCts.Token);
                         
                         // Get global config
