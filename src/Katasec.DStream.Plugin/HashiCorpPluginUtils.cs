@@ -1,4 +1,4 @@
-﻿using DStreamDotnetTest;
+﻿using HCLog.Net;
 using System.Net;
 using System.Net.Sockets;
 

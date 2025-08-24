@@ -1,4 +1,4 @@
-using DStreamDotnetTest;
+using HCLog.Net;
 using Katasec.DStream.Proto;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;

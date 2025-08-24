@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Logging;
 using Katasec.DStream.Plugin.Interfaces;
 using static Katasec.DStream.Proto.Plugin;
+using HCLog.Net;
 
 namespace Katasec.DStream.Plugin;
 
@@ -156,7 +157,7 @@ public class DStreamPluginHost<TPlugin, TConfig>
     private class PluginServiceImpl : PluginBase
     {
         private readonly IDStreamPlugin<TConfig> _plugin;
-        private readonly HCLogger _logger;
+        private readonly HCLogger? _logger;
         private CancellationTokenSource _cts;
 
         public PluginServiceImpl(TPlugin plugin)
@@ -180,6 +181,7 @@ public class DStreamPluginHost<TPlugin, TConfig>
 
         public override async Task<Empty> Start(StartRequest request, ServerCallContext context)
         {
+            ArgumentNullException.ThrowIfNull(request);
             try
             {
                 // Link the cancellation token from the context
@@ -187,22 +189,22 @@ public class DStreamPluginHost<TPlugin, TConfig>
                     context.CancellationToken, _cts.Token);
                 
                 // Log the raw request structure received from dstream CLI
-                _logger.Info("Raw request structure from dstream CLI:");
-                _logger.Info($"Input Provider: {request.Input?.Provider}");
-                _logger.Info($"Output Provider: {request.Output?.Provider}");
+                _logger?.Info("Raw request structure from dstream CLI:");
+                _logger?.Info($"Input Provider: {request.Input?.Provider}");
+                _logger?.Info($"Output Provider: {request.Output?.Provider}");
                 if (request.Config != null)
                 {
-                    _logger.Info("Global Config:");
+                    _logger?.Info("Global Config:");
                     foreach (var field in request.Config.Fields)
                     {
-                        _logger.Info($"  {field.Key}: {field.Value}");
+                        _logger?.Info($"  {field.Key}: {field.Value}");
                     }
                 }
                 
                 // Check if we have input and output configurations
                 if (request.Input != null && request.Output != null)
                 {
-                    _logger.Info("Starting plugin with input provider '{0}' and output provider '{1}'", 
+                    _logger?.Info("Starting plugin with input provider '{0}' and output provider '{1}'", 
                         request.Input.Provider, request.Output.Provider);
                     
                     try
@@ -214,10 +216,10 @@ public class DStreamPluginHost<TPlugin, TConfig>
                             kvp => (object)kvp.Value) ?? new Dictionary<string, object>();
                         
                         // Log input configuration
-                        _logger.Info("Input Configuration:");
+                        _logger?.Info("Input Configuration:");
                         foreach (var kvp in inputConfig)
                         {
-                            _logger.Info($"  {kvp.Key}: {kvp.Value}");
+                            _logger?.Info($"  {kvp.Key}: {kvp.Value}");
                         }
                         
                         await input.InitializeAsync(inputConfig, linkedCts.Token);
@@ -229,49 +231,52 @@ public class DStreamPluginHost<TPlugin, TConfig>
                             kvp => (object)kvp.Value) ?? new Dictionary<string, object>();
                         
                         // Log output configuration
-                        _logger.Info("Output Configuration:");
+                        _logger?.Info("Output Configuration:");
                         foreach (var kvp in outputConfig)
                         {
-                            _logger.Info($"  {kvp.Key}: {kvp.Value}");
+                            _logger?.Info($"  {kvp.Key}: {kvp.Value}");
                         }
                         
                         await output.InitializeAsync(outputConfig, linkedCts.Token);
                         
                         // Convert the protobuf struct to a strongly-typed configuration object
-                        _logger.Info("Converting protobuf configuration to strongly-typed configuration");
-                        var typedConfig = ConfigurationUtils.ConvertToTypedConfig<TConfig>(request.Config, _logger);
+                        _logger?.Info("Converting protobuf configuration to strongly-typed configuration");
+                        if (request.Config != null)
+                        {
+                            var typedConfig = ConfigurationUtils.ConvertToTypedConfig<TConfig>(request.Config, _logger);
                         
-                        // Log the typed configuration
-                        _logger.Info("Using strongly-typed configuration of type: {0}", typeof(TConfig).Name);
+                            // Log the typed configuration
+                            _logger?.Info("Using strongly-typed configuration of type: {0}", typeof(TConfig).Name);
                         
-                        // Process using input/output providers with typed configuration
-                        _logger.Info("Calling plugin's ProcessAsync with strongly-typed configuration");
-                        await _plugin.ProcessAsync(input, output, typedConfig, linkedCts.Token);
-                        
+                            // Process using input/output providers with typed configuration
+                            _logger?.Info("Calling plugin's ProcessAsync with strongly-typed configuration");
+                            await _plugin.ProcessAsync(input, output, typedConfig, linkedCts.Token);
+                        }
+
                         // Clean up providers
                         await input.CloseAsync(linkedCts.Token);
                         await output.CloseAsync(linkedCts.Token);
                     }
                     catch (KeyNotFoundException ex)
                     {
-                        _logger.Error("Provider not found: {0}", ex.Message);
+                        _logger?.Error("Provider not found: {0}", ex.Message);
                         throw;
                     }
                 }
                 else
                 {
-                    _logger.Error("Input or output configuration is missing");
+                    _logger?.Error("Input or output configuration is missing");
                 }
             }
             catch (OperationCanceledException)
             {
                 // Expected when cancellation occurs
-                _logger.Info("Plugin stopped by cancellation");
+                _logger?.Info("Plugin stopped by cancellation");
             }
             catch (Exception ex)
             {
                 // Log any unexpected exceptions
-                _logger.Error("Error: {0}", ex.Message);
+                _logger?.Error("Error: {0}", ex.Message);
             }
 
             // Return an empty response when done

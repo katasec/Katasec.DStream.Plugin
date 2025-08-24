@@ -1,5 +1,6 @@
 using Katasec.DStream.Plugin.Interfaces;
 using Katasec.DStream.Proto;
+using HCLog.Net;
 
 namespace Katasec.DStream.Plugin;
 

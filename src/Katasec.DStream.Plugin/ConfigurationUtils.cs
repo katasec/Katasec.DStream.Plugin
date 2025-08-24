@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Google.Protobuf.WellKnownTypes;
 using Microsoft.Extensions.Logging;
+using HCLog.Net;
 
 namespace Katasec.DStream.Plugin;
 
@@ -16,7 +17,7 @@ public static class ConfigurationUtils
     /// <param name="protoStruct">The protobuf Struct to convert</param>
     /// <param name="logger">Optional logger for debug information</param>
     /// <returns>A new instance of TConfig populated with values from the protobuf Struct</returns>
-    public static TConfig ConvertToTypedConfig<TConfig>(Struct protoStruct, HCLogger logger = null) where TConfig : class, new()
+    public static TConfig ConvertToTypedConfig<TConfig>(Struct protoStruct, HCLogger? logger = null) where TConfig : class, new()
     {
         logger?.Debug("Converting protobuf Struct to typed configuration of type {0}", typeof(TConfig).Name);
         
@@ -70,8 +71,13 @@ public static class ConfigurationUtils
     /// <param name="value">The protobuf Value to convert</param>
     /// <param name="logger">Optional logger for debug information</param>
     /// <returns>The equivalent .NET object</returns>
-    private static object ConvertValue(Value value, HCLogger logger = null)
+    private static object? ConvertValue(Value value, HCLogger? logger = null)
     {
+        if (logger == null)
+        {
+            throw new ApplicationException("No logger configured");
+        }
+        
         if (value == null)
         {
             return null;
@@ -118,8 +124,12 @@ public static class ConfigurationUtils
     /// <param name="config">The configuration object to convert</param>
     /// <param name="logger">Optional logger for debug information</param>
     /// <returns>A protobuf Struct representing the configuration</returns>
-    public static Struct ConvertFromTypedConfig<TConfig>(TConfig config, HCLogger logger = null) where TConfig : class
+    public static Struct ConvertFromTypedConfig<TConfig>(TConfig config, HCLogger? logger = null) where TConfig : class
     {
+        if (logger == null)
+        {
+            throw new ApplicationException("No logger configured");
+        }
         logger?.Debug("Converting typed configuration to protobuf Struct");
         
         if (config == null)
@@ -165,8 +175,12 @@ public static class ConfigurationUtils
     /// <param name="obj">The .NET object to convert</param>
     /// <param name="logger">Optional logger for debug information</param>
     /// <returns>A protobuf Value representing the object</returns>
-    private static Value CreateValue(object obj, HCLogger logger = null)
+    private static Value CreateValue(object obj, HCLogger? logger = null)
     {
+        if (logger == null)
+        {
+            throw new ApplicationException("No logger configured");
+        }
         if (obj == null)
         {
             return Value.ForNull();
@@ -218,12 +232,13 @@ public static class ConfigurationUtils
                 
             case IEnumerable<object> list:
                 logger?.Debug("Creating ListValue");
-                var listValue = new ListValue();
+                var values = new List<Value>();
                 foreach (var item in list)
                 {
-                    listValue.Values.Add(CreateValue(item, logger));
+                    values.Add(CreateValue(item, logger));
                 }
-                return Value.ForList(listValue);
+                
+                return Value.ForList(values.ToArray());
                 
             default:
                 // For complex objects, serialize to JSON and then parse
@@ -240,8 +255,13 @@ public static class ConfigurationUtils
     /// <param name="element">The JsonElement to convert</param>
     /// <param name="logger">Optional logger for debug information</param>
     /// <returns>A protobuf Value representing the JsonElement</returns>
-    private static Value CreateValueFromJsonElement(JsonElement element, HCLogger logger = null)
+    private static Value CreateValueFromJsonElement(JsonElement element, HCLogger? logger = null)
     {
+        if (logger == null)
+        {
+            throw new ApplicationException("No logger configured");
+        }
+        
         switch (element.ValueKind)
         {
             case JsonValueKind.Null:
@@ -272,12 +292,12 @@ public static class ConfigurationUtils
                 return Value.ForStruct(structValue);
                 
             case JsonValueKind.Array:
-                var listValue = new ListValue();
+                var valuesList = new List<Value>();
                 foreach (var item in element.EnumerateArray())
                 {
-                    listValue.Values.Add(CreateValueFromJsonElement(item, logger));
+                    valuesList.Add(CreateValueFromJsonElement(item, logger));
                 }
-                return Value.ForList(listValue);
+                return Value.ForList(valuesList.ToArray());
                 
             default:
                 logger?.Debug("Unhandled JsonValueKind: {0}", element.ValueKind);
