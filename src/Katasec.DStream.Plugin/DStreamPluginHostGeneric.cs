@@ -19,9 +19,29 @@ namespace Katasec.DStream.Plugin;
 /// <typeparam name="TPlugin">The type of plugin to host</typeparam>
 /// <typeparam name="TConfig">The type of configuration object for the plugin</typeparam>
 public class DStreamPluginHost<TPlugin, TConfig> 
-    where TPlugin : class, IDStreamPlugin<TConfig>, new()
+    where TPlugin : class, IDStreamPlugin<TConfig>
     where TConfig : class, new()
 {
+    // Static instance for service access
+    private static DStreamPluginHost<TPlugin, TConfig>? _instance;
+
+    /// <summary>
+    /// Creates a new instance of the plugin host with the specified plugin and providers
+    /// </summary>
+    /// <param name="plugin">The plugin instance</param>
+    /// <param name="inputProvider">The input provider</param>
+    /// <param name="outputProvider">The output provider</param>
+    public DStreamPluginHost(TPlugin plugin, IInput inputProvider, IOutput outputProvider)
+    {
+        Plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
+        InputProvider = inputProvider ?? throw new ArgumentNullException(nameof(inputProvider));
+        OutputProvider = outputProvider ?? throw new ArgumentNullException(nameof(outputProvider));
+        Logger = new HCLogger(plugin.ModuleName);
+        
+        // Set the static instance for service access
+        _instance = this;
+    }
+
     /// <summary>
     /// Whether the plugin is running in standalone mode
     /// </summary>
@@ -36,6 +56,16 @@ public class DStreamPluginHost<TPlugin, TConfig>
     /// The plugin instance
     /// </summary>
     protected TPlugin Plugin { get; private set; } = null!;
+
+    /// <summary>
+    /// The input provider
+    /// </summary>
+    protected IInput InputProvider { get; private set; } = null!;
+
+    /// <summary>
+    /// The output provider
+    /// </summary>
+    protected IOutput OutputProvider { get; private set; } = null!;
 
     /// <summary>
     /// Runs the plugin host
@@ -58,8 +88,7 @@ public class DStreamPluginHost<TPlugin, TConfig>
             return;
         }
 
-        // Create the plugin instance
-        Plugin = new TPlugin();
+        // Plugin instance is already set in the constructor
 
         // Create a HashiCorp compatible logger
         Logger = new HCLogger("dotnet-plugin");
@@ -204,40 +233,19 @@ public class DStreamPluginHost<TPlugin, TConfig>
                 // Check if we have input and output configurations
                 if (request.Input != null && request.Output != null)
                 {
-                    _logger?.Info("Starting plugin with input provider '{0}' and output provider '{1}'", 
-                        request.Input.Provider, request.Output.Provider);
+                    _logger?.Info("Starting plugin with existing input and output providers");
                     
                     try
                     {
-                        // Create and configure input provider
-                        var input = ProviderRegistry.CreateInputProvider(request.Input.Provider);
-                        var inputConfig = request.Input.Config?.Fields.ToDictionary(
-                            kvp => kvp.Key, 
-                            kvp => (object)kvp.Value) ?? new Dictionary<string, object>();
+                        // Use the existing input and output providers
+                        var input = _instance?.InputProvider;
+                        var output = _instance?.OutputProvider;
                         
-                        // Log input configuration
-                        _logger?.Info("Input Configuration:");
-                        foreach (var kvp in inputConfig)
+                        if (input == null || output == null)
                         {
-                            _logger?.Info($"  {kvp.Key}: {kvp.Value}");
+                            _logger?.Error("Input or output provider is null");
+                            throw new InvalidOperationException("Input or output provider is null");
                         }
-                        
-                        await input.InitializeAsync(inputConfig, linkedCts.Token);
-                        
-                        // Create and configure output provider
-                        var output = ProviderRegistry.CreateOutputProvider(request.Output.Provider);
-                        var outputConfig = request.Output.Config?.Fields.ToDictionary(
-                            kvp => kvp.Key, 
-                            kvp => (object)kvp.Value) ?? new Dictionary<string, object>();
-                        
-                        // Log output configuration
-                        _logger?.Info("Output Configuration:");
-                        foreach (var kvp in outputConfig)
-                        {
-                            _logger?.Info($"  {kvp.Key}: {kvp.Value}");
-                        }
-                        
-                        await output.InitializeAsync(outputConfig, linkedCts.Token);
                         
                         // Convert the protobuf struct to a strongly-typed configuration object
                         _logger?.Info("Converting protobuf configuration to strongly-typed configuration");
@@ -253,9 +261,7 @@ public class DStreamPluginHost<TPlugin, TConfig>
                             await _plugin.ProcessAsync(input, output, typedConfig, linkedCts.Token);
                         }
 
-                        // Clean up providers
-                        await input.CloseAsync(linkedCts.Token);
-                        await output.CloseAsync(linkedCts.Token);
+                        // Note: We don't close the providers here as they are managed by the host
                     }
                     catch (KeyNotFoundException ex)
                     {
